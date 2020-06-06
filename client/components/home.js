@@ -1,29 +1,22 @@
-import React from 'react';
-
-import { connect } from 'react-redux';
-import { bindActionCreators } from 'redux'
+import React, { useState } from 'react'
 import Head from './head'
+// import wave from '../assets/images/wave.jpg'
 
-class Home extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {}
-  }
+const Home = () => {
+  const [counter, setCounterNew] = useState(0)
 
-  render() {
-    return (
-      <div>
-        <Head title="Hello" />
-        <div> Hello World Home </div>
-      </div>
-    )
-  }
+  return (
+    <div>
+      <Head title="Hello" />
+      <img alt="wave" src="images/wave.jpg" />
+      <button type="button" onClick={() => setCounterNew(counter + 1)}>
+        updateCounter
+      </button>
+      <div> Hello World Dashboard {counter} </div>
+    </div>
+  )
 }
 
 Home.propTypes = {}
 
-const mapStateToProps = () => ({})
-
-const mapDispatchToProps = dispatch => bindActionCreators({}, dispatch)
-
-export default connect(mapStateToProps, mapDispatchToProps)(Home)
+export default Home

@@ -1,31 +1,19 @@
-import React from 'react';
-
-import { connect } from 'react-redux';
-import { bindActionCreators } from 'redux'
+import React from 'react'
 import Head from './head'
 
-class Dummy extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      counter: 0
-    }
-  }
-
-  render() {
-    return (
-      <div>
-        <Head title="Hello" />
-        <div> Hello World {this.state.counter} </div>
+const Dummy = () => {
+  return (
+    <div>
+      <Head title="Hello" />
+      <div className="flex items-center justify-center h-screen">
+        <div className="bg-indigo-800 hover:text-red-500 text-white font-bold rounded-lg border shadow-lg p-10">
+          This is dummy component
+        </div>
       </div>
-    )
-  }
+    </div>
+  )
 }
 
 Dummy.propTypes = {}
 
-const mapStateToProps = () => ({})
-
-const mapDispatchToProps = dispatch => bindActionCreators({}, dispatch)
-
-export default connect(mapStateToProps, mapDispatchToProps)(Dummy)
+export default React.memo(Dummy)

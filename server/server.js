@@ -1,67 +1,65 @@
-/* eslint-disable import/no-duplicates */
-import express from 'express';
-import path from 'path';
+import express from 'express'
+import path from 'path'
 import cors from 'cors'
-import bodyParser from 'body-parser';
-import sockjs from 'sockjs';
+import bodyParser from 'body-parser'
+import sockjs from 'sockjs'
+import { renderToStaticNodeStream } from 'react-dom/server'
+import React from 'react'
 
 import cookieParser from 'cookie-parser'
-import Html from '../client/html';
-import Variables from '../client/variables';
+import config from './config'
+import Html from '../client/html'
 
+const Root = () => ''
 
-let connections = [];
-const clientVariables = Object.keys(process.env)
-  .filter(key => key.indexOf('CLIENT') === 0)
-  .reduce((res, key) => (Object.assign({}, res, { [key]: process.env[key] })), {});
+try {
+  // eslint-disable-next-line import/no-unresolved
+  // ;(async () => {
+  //   const items = await import('../dist/assets/js/root.bundle')
+  //   console.log(JSON.stringify(items))
 
+  //   Root = (props) => <items.Root {...props} />
+  //   console.log(JSON.stringify(items.Root))
+  // })()
+  console.log(Root)
+} catch (ex) {
+  console.log(' run yarn build:prod to enable ssr')
+}
 
-const port = process.env.PORT || 3000;
-const server = express();
+let connections = []
 
-server.use(cors());
+const port = process.env.PORT || 8090
+const server = express()
 
-server.use(express.static(path.resolve(__dirname, '../dist/assets')));
-server.use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 50000 }))
-server.use(bodyParser.json({ limit: '50mb', extended: true }))
+const middleware = [
+  cors(),
+  express.static(path.resolve(__dirname, '../dist/assets')),
+  bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 50000 }),
+  bodyParser.json({ limit: '50mb', extended: true }),
+  cookieParser()
+]
 
-server.use(cookieParser());
+middleware.forEach((it) => server.use(it))
 
 server.use('/api/', (req, res) => {
-  res.status(404);
-  res.end();
-});
+  res.status(404)
+  res.end()
+})
 
-const echo = sockjs.createServer();
-echo.on('connection', (conn) => {
-  connections.push(conn);
-  conn.on('data', async () => {});
-
-  conn.on('close', () => {
-    connections = connections.filter(c => c.readyState !== 3)
-  });
-});
-
-
-server.get('/js/variables.js', (req, res) => {
-  res.send(
-    Variables({
-      clientVariables
-    })
-  );
-});
+const [htmlStart, htmlEnd] = Html({
+  body: 'separator',
+  title: 'Skillcrucial - Become an IT HERO'
+}).split('separator')
 
 server.get('/', (req, res) => {
-  // const body = renderToString(<Root />);
-  const title = 'Server side Rendering';
-  res.send(
-    Html({
-      body: '',
-      title,
-      clientVariables
-    })
-  );
-});
+  const appStream = renderToStaticNodeStream(<Root location={req.url} context={{}} />)
+  res.write(htmlStart)
+  appStream.pipe(res, { end: false })
+  appStream.on('end', () => {
+    res.write(htmlEnd)
+    res.end()
+  })
+})
 
 server.get('/*', (req, res) => {
   const initialState = {
@@ -71,16 +69,23 @@ server.get('/*', (req, res) => {
   return res.send(
     Html({
       body: '',
-      initialState,
-      clientVariables
+      initialState
     })
-  );
-});
+  )
+})
 
+const app = server.listen(port)
 
-const app = server.listen(port);
+if (config.isSocketsEnabled) {
+  const echo = sockjs.createServer()
+  echo.on('connection', (conn) => {
+    connections.push(conn)
+    conn.on('data', async () => {})
 
-echo.installHandlers(app, { prefix: '/ws' });
-
-// eslint-disable-next-line no-console
-console.log(`Serving at http://localhost:${port}`);
+    conn.on('close', () => {
+      connections = connections.filter((c) => c.readyState !== 3)
+    })
+  })
+  echo.installHandlers(app, { prefix: '/ws' })
+}
+console.log(`Serving at http://localhost:${port}`)

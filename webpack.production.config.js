@@ -1,70 +1,78 @@
 const { resolve } = require('path')
-const fs = require('fs')
+require('dotenv').config()
+
 const webpack = require('webpack')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const CopyWebpackPlugin = require('copy-webpack-plugin')
-const HardSourceWebpackPlugin = require('hard-source-webpack-plugin')
-const ReactRefreshWebpackPlugin = require('@pmmmwh/react-refresh-webpack-plugin')
+const GitRevisionPlugin = require('git-revision-webpack-plugin')
+const StringReplacePlugin = require('string-replace-webpack-plugin')
+const OptimizeCSSAssetsPlugin = require('optimize-css-assets-webpack-plugin')
+const TerserJSPlugin = require('terser-webpack-plugin')
 const { v4: uuidv4 } = require('uuid')
-const eslintCacheIdentifier = JSON.stringify(fs.statSync('.eslintrc').mtimeMs)
-require('dotenv').config()
 
-const version = 'development'
+const gitRevisionPlugin = new GitRevisionPlugin()
+const version = uuidv4().substr(0, 7)
+
 const config = {
-  devtool: 'cheap-module-eval-source-map',
-
-  entry: ['./main.js'],
+  optimization: {
+    minimize: true,
+    minimizer: [
+      new TerserJSPlugin({ parallel: true }),
+      new OptimizeCSSAssetsPlugin({
+        cssProcessor: require('cssnano'),
+        cssProcessorPluginOptions: {
+          preset: ['default', { discardComments: { removeAll: true } }]
+        }
+      })
+    ]
+  },
+  entry: {
+    main: './main.js',
+    root: './config/root.js'
+  }, // [('./main.js', './config/root.js')],
   resolve: {
     alias: {
-      d3: 'd3/index.js',
-      'react-dom': '@hot-loader/react-dom'
+      d3: 'd3/index.js'
     }
   },
   output: {
     filename: 'js/[name].bundle.js',
     path: resolve(__dirname, 'dist/assets'),
     publicPath: '/',
-    chunkFilename: 'js/[name].[contenthash].js'
+    chunkFilename: 'js/[name].js?id=[chunkhash]'
   },
-  mode: 'development',
+  mode: 'production',
   context: resolve(__dirname, 'client'),
-  devServer: {
-    hot: false,
-    contentBase: resolve(__dirname, 'dist/assets'),
-    watchContentBase: true,
-    host: 'localhost',
-    port: 8087,
-    disableHostCheck: true,
-    open: true,
-    historyApiFallback: true,
-    overlay: {
-      warnings: false,
-      errors: true
-    },
-    proxy: [
-      {
-        context: ['/api', '/auth', '/ws'],
-        target: `http://localhost:${process.env.PORT || 8090}`,
-        secure: false,
-        changeOrigin: true,
-        ws: (process.env.ENABLE_SOCKETS || false)
-      }
-    ]
+  devtool: false,
+  performance: {
+    hints: 'warning',
+    maxEntrypointSize: 512000,
+    maxAssetSize: 512000
   },
   module: {
     rules: [
       {
+        test: /.html$/,
+        loader: StringReplacePlugin.replace({
+          replacements: [
+            {
+              pattern: /COMMITHASH/gi,
+              replacement() {
+                return gitRevisionPlugin.commithash()
+              }
+            }
+          ]
+        })
+      },
+      {
         enforce: 'pre',
         test: /\.js$/,
         exclude: /node_modules/,
-        include: [/client/, /server/],
         loader: [
           {
             loader: 'eslint-loader',
             options: {
-              cache: true,
-
-              cacheIdentifer: eslintCacheIdentifier
+              cache: true
             }
           }
         ]
@@ -72,7 +80,6 @@ const config = {
       {
         test: /\.js$/,
         loaders: ['babel-loader'],
-        include: [/client/, /stories/],
         exclude: /node_modules/
       },
       {
@@ -85,7 +92,7 @@ const config = {
               hmr: process.env.NODE_ENV === 'development'
             }
           },
-          { loader: 'css-loader', options: { sourceMap: true } },
+          { loader: 'css-loader', options: { sourceMap: false } },
           {
             loader: 'postcss-loader'
           }
@@ -107,7 +114,7 @@ const config = {
             }
           },
 
-          { loader: 'css-loader', options: { sourceMap: true } },
+          { loader: 'css-loader', options: { sourceMap: false } },
           {
             loader: 'postcss-loader'
           },
@@ -125,7 +132,7 @@ const config = {
         enforce: 'pre'
       },
       {
-        test: /\.(png|jpg|gif|webp)$/,
+        test: /\.(jpg|png|gif|webp)$/,
         use: [
           {
             loader: 'file-loader'
@@ -144,7 +151,11 @@ const config = {
         test: /\.woff(2)$/,
         use: [
           {
-            loader: 'file-loader'
+            loader: 'file-loader',
+            options: {
+              name: '[name].[ext]',
+              outputPath: 'fonts/'
+            }
           }
         ]
       },
@@ -152,7 +163,11 @@ const config = {
         test: /\.[ot]tf$/,
         use: [
           {
-            loader: 'file-loader'
+            loader: 'file-loader',
+            options: {
+              name: '[name].[ext]',
+              outputPath: 'fonts/'
+            }
           }
         ]
       },
@@ -172,39 +187,34 @@ const config = {
   },
 
   plugins: [
-    new webpack.optimize.ModuleConcatenationPlugin(),
-    new MiniCssExtractPlugin({
-      filename: 'css/main.css',
-      chunkFilename: 'css/[id].css',
-      ignoreOrder: false
-    }),
+    new StringReplacePlugin(),
+
     new CopyWebpackPlugin(
       {
         patterns: [
-          { from: `${__dirname}/client/assets/images`, to: 'images' },
-          { from: `${__dirname}/client/assets/fonts`, to: 'fonts' },
+          { from: 'assets/images', to: 'images' },
+          { from: 'assets/fonts', to: 'fonts' },
 
-          { from: `${__dirname}/client/assets/sitemap.xml`, to: 'sitemap.xml' },
-          { from: `${__dirname}/client/assets/manifest.json`, to: 'manifest.json' },
-          { from: `${__dirname}/client/index.html`, to: 'index.html' },
-
+          { from: 'assets/sitemap.xml', to: 'sitemap.xml' },
+          { from: 'assets/manifest.json', to: 'manifest.json' },
           {
-            from: `${__dirname}/client/install-sw.js`,
+            from: 'install-sw.js',
             to: 'js/install-sw.js',
             transform: (content) => {
               return content.toString().replace(/APP_VERSION/g, version)
             }
           },
-          { from: `${__dirname}/client/assets/robots.txt`, to: 'robots.txt' },
+          { from: 'assets/robots.txt', to: 'robots.txt' },
+          { from: 'vendors', to: 'vendors' },
           {
-            from: `${__dirname}/client/html.js`,
+            from: 'html.js',
             to: 'html.js',
             transform: (content) => {
               return content.toString().replace(/COMMITHASH/g, version)
             }
           },
           {
-            from: `${__dirname}/client/sw.js`,
+            from: 'sw.js',
             to: 'sw.js',
             transform: (content) => {
               return content.toString().replace(/APP_VERSION/g, version)
@@ -214,19 +224,20 @@ const config = {
       },
       { parallel: 100 }
     ),
-
-    new ReactRefreshWebpackPlugin(),
+    new MiniCssExtractPlugin({
+      filename: 'css/main.css',
+      chunkFilename: 'css/[id].css',
+      ignoreOrder: false
+    }),
     new webpack.DefinePlugin(
       Object.keys(process.env).reduce(
         (res, key) => ({ ...res, [key]: JSON.stringify(process.env[key]) }),
         {
           APP_VERSION: uuidv4().substr(0, 7),
-          ENABLE_SOCKETS: JSON.stringify(process.env.ENABLE_SOCKETS || false)
+          ENABLE_SOCKETS: process.env.ENABLE_SOCKETS || false
         }
       )
-    ),
-    //  new HardSourceWebpackPlugin(),
-    new webpack.HotModuleReplacementPlugin()
+    )
   ]
 }
 

@@ -1,6 +1,4 @@
-const Html = ({
-  body
-}) => {
+const Html = ({ body }) => {
   return `
   <!DOCTYPE html>
   <html>
@@ -11,7 +9,7 @@ const Html = ({
     </head>
     <body>
       <div id="root">${body}</div>
-      <script type="text/javascript" src="/js/bundle.js?v=COMMITHASH"></script>
+      <script type="text/javascript" src="/js/main.bundle.js?v=COMMITHASH"></script>
     </body>
   </html>
 `
